@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "649357091837",
+    "project_id": "sorteo-petanca",
+    "storage_bucket": "sorteo-petanca.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:649357091837:android:98286413aea71c5ea76f94",
+        "android_client_info": {
+          "package_name": "com.example.sorteo"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD8SNxwggHFHui3PuQUZDTjW6QnhEaWKTc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
