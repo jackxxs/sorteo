@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Login
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -29,6 +28,7 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.example.sorteo.ui.theme.SORTEOTheme
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -64,10 +64,10 @@ fun PantallaPrincipal() {
             PantallaSeleccionRol { role -> userRole = role }
         }
         UserRole.PLAYER -> {
-            VistaJugador { userRole = UserRole.NONE }
+            VistaJugadorConCodigo { userRole = UserRole.NONE }
         }
         UserRole.CREATOR -> {
-            VistaCreador { userRole = UserRole.NONE }
+            VistaCreadorConCodigo { userRole = UserRole.NONE }
         }
         UserRole.QUICK_DRAW -> {
             VistaSorteoRapido { userRole = UserRole.NONE }
@@ -108,6 +108,7 @@ fun PantallaSeleccionRol(onRoleSelected: (UserRole) -> Unit) {
     }
 }
 
+// --- SORTEO RAPIDO (SIN CAMBIOS) ---
 @Composable
 fun VistaSorteoRapido(onBack: () -> Unit) {
     var nombres by remember { mutableStateOf(listOf<String>()) }
@@ -227,15 +228,109 @@ fun SelectorSorteoRapido(
 }
 
 @Composable
-fun VistaJugador(onBack: () -> Unit) {
-    val firebaseManager = remember { FirebaseManager() }
+fun PantallaResultadoSorteo(resultado: List<List<String>>) {
+    LazyColumn(modifier = Modifier.padding(16.dp)) {
+        itemsIndexed(resultado) { index, equipo ->
+            Card(
+                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                elevation = CardDefaults.cardElevation(2.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(
+                        "Equipo ${index + 1}",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    equipo.forEach { nombre ->
+                        Text(" - $nombre", fontSize = 16.sp, color = Color.Black)
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// --- VISTA JUGADOR (REFACTORIZADA) ---
+
+@Composable
+fun VistaJugadorConCodigo(onBack: () -> Unit) {
+    var codigoTorneo by remember { mutableStateOf("") }
+    var torneoIniciado by remember { mutableStateOf(false) }
+
+    if (!torneoIniciado) {
+        PantallaIntroducirCodigo(
+            codigo = codigoTorneo,
+            onCodigoChange = { if (it.length <= 5) codigoTorneo = it.uppercase() },
+            onUnirse = {
+                if (codigoTorneo.isNotBlank()) {
+                    torneoIniciado = true
+                }
+            },
+            onBack = onBack
+        )
+    } else {
+        VistaJugador(
+            codigoTorneo = codigoTorneo,
+            onBack = {
+                torneoIniciado = false
+                codigoTorneo = ""
+            }
+        )
+    }
+}
+
+@Composable
+fun PantallaIntroducirCodigo(
+    codigo: String,
+    onCodigoChange: (String) -> Unit,
+    onUnirse: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.Start)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text("UNIRSE A TORNEO", fontWeight = FontWeight.Black, fontSize = 24.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedTextField(
+            value = codigo,
+            onValueChange = onCodigoChange,
+            label = { Text("Código del Torneo") },
+            modifier = Modifier.fillMaxWidth(0.8f),
+            singleLine = true,
+            textStyle = LocalTextStyle.current.copy(textAlign = TextAlign.Center, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onUnirse,
+            enabled = codigo.length == 5,
+            modifier = Modifier.fillMaxWidth(0.8f).height(50.dp)
+        ) {
+            Text("UNIRSE")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
+    val firebaseManager = remember(codigoTorneo) { FirebaseManager(codigoTorneo) }
     val equiposInternet by firebaseManager.escucharSorteo().collectAsState(initial = emptyList())
     var tabSeleccionada by remember { mutableIntStateOf(0) }
     val fases = listOf("General", "Consolación", "Repesca")
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text("PETANCA LIVE ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp)
+            Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp)
             IconButton(onClick = onBack) {
                 Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Salir")
             }
@@ -243,7 +338,11 @@ fun VistaJugador(onBack: () -> Unit) {
 
         if (equiposInternet.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("El torneo aún no ha comenzado.", fontSize = 16.sp, color = Color.Gray)
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator()
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("Esperando que el creador inicie el torneo...", fontSize = 16.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                }
             }
         } else {
             ScrollableTabRow(selectedTabIndex = tabSeleccionada, edgePadding = 0.dp, containerColor = Color.Transparent) {
@@ -305,215 +404,6 @@ fun VistaJugador(onBack: () -> Unit) {
 }
 
 @Composable
-fun VistaCreador(onBack: () -> Unit) {
-    val context = LocalContext.current
-    val dataStore = remember { SorteoDataStore(context) }
-    val nombres by dataStore.nombres.collectAsState(initial = emptyList())
-    val coroutineScope = rememberCoroutineScope()
-
-    val firebaseManager = remember { FirebaseManager() }
-    var isAdmin by remember { mutableStateOf(false) }
-    var claveInput by remember { mutableStateOf("") }
-    var nombreTexto by remember { mutableStateOf("") }
-
-    val equiposInternet by firebaseManager.escucharSorteo().collectAsState(initial = emptyList())
-
-    Column(modifier = Modifier.fillMaxSize()) {
-        Row(
-            Modifier.fillMaxWidth().padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
-                }
-                Text("Creador del Torneo", fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp))
-            }
-            if (isAdmin) {
-                Surface(color = Color(0xFFC8E6C9), shape = RoundedCornerShape(4.dp)) {
-                    Text(
-                        text = "ADMIN",
-                        color = Color(0xFF2E7D32),
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 12.sp
-                    )
-                }
-            }
-        }
-
-        if (isAdmin) {
-            if (equiposInternet.isEmpty()) {
-                SelectorAdmin(
-                    nombres = nombres,
-                    onNombresChange = { nuevosNombres ->
-                        coroutineScope.launch {
-                            dataStore.guardarNombres(nuevosNombres)
-                        }
-                    },
-                    onTextoChange = { nombreTexto = it },
-                    texto = nombreTexto,
-                    onStart = { modoSelected ->
-                        val tamano = if (modoSelected == "dupletas") 2 else 3
-                        val listaObjetos = nombres.shuffled().chunked(tamano).map { EquipoFirebase(miembros = it, fase = "General") }
-                        firebaseManager.publicarSorteo(listaObjetos)
-                        coroutineScope.launch {
-                            dataStore.guardarNombres(emptyList())
-                        }
-                    },
-                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp)
-                )
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize().padding(12.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text("El torneo ya está en marcha.")
-                    Spacer(Modifier.height(16.dp))
-                    Button(
-                        onClick = {
-                            coroutineScope.launch {
-                                dataStore.guardarNombres(emptyList())
-                            }
-                            firebaseManager.publicarSorteo(emptyList())
-                        },
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                    ) { Text("BORRAR TORNEO Y LISTA") }
-                }
-            }
-        } else {
-            Column(
-                modifier = Modifier.fillMaxSize().padding(16.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    "Introduce la clave de administrador",
-                    fontSize = 18.sp,
-                    color = Color.Gray,
-                    modifier = Modifier.padding(horizontal = 32.dp),
-                    textAlign = TextAlign.Center
-                )
-                Spacer(Modifier.height(24.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.padding(horizontal = 32.dp)
-                ) {
-                    OutlinedTextField(
-                        value = claveInput,
-                        onValueChange = { claveInput = it },
-                        label = { Text("Clave") },
-                        visualTransformation = PasswordVisualTransformation(),
-                        singleLine = true,
-                        modifier = Modifier.weight(1f)
-                    )
-                    IconButton(onClick = { if (claveInput == "1234") isAdmin = true }) {
-                        Icon(Icons.AutoMirrored.Filled.Login, contentDescription = "Login")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun SelectorAdmin(
-    nombres: List<String>,
-    onNombresChange: (List<String>) -> Unit,
-    onTextoChange: (String) -> Unit,
-    texto: String,
-    onStart: (String) -> Unit,
-    modifier: Modifier = Modifier
-) {
-    Card(modifier.fillMaxSize(), colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
-        Column(Modifier.padding(16.dp)) {
-            Text("INSCRIPCIÓN DE JUGADORES", fontWeight = FontWeight.Black, fontSize = 18.sp, color = Color.Black)
-            Spacer(Modifier.height(8.dp))
-
-            OutlinedTextField(
-                value = texto,
-                onValueChange = onTextoChange,
-                label = { Text("Nombre del Jugador") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = Color.Black,
-                    unfocusedTextColor = Color.Black,
-                    cursorColor = Color.Black,
-                    focusedLabelColor = Color.DarkGray,
-                    unfocusedLabelColor = Color.DarkGray
-                ),
-                trailingIcon = {
-                    IconButton(onClick = {
-                        if (texto.isNotBlank()) {
-                            onNombresChange(nombres + texto.trim())
-                            onTextoChange("")
-                        }
-                    }) { Icon(Icons.Default.PersonAdd, null, tint = MaterialTheme.colorScheme.primary) }
-                }
-            )
-
-            Text("Inscritos: ${nombres.size}", Modifier.padding(vertical = 12.dp), fontWeight = FontWeight.Bold, color = Color.DarkGray)
-
-            Box(
-                Modifier.weight(1f).fillMaxWidth().background(Color.White, RoundedCornerShape(8.dp))
-                    .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
-            ) {
-                if (nombres.isEmpty()) {
-                    Text("No hay jugadores añadidos", Modifier.align(Alignment.Center), color = Color.LightGray)
-                } else {
-                    LazyColumn(Modifier.padding(4.dp)) {
-                        itemsIndexed(nombres) { index, nombre ->
-                            Row(
-                                Modifier.fillMaxWidth().padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text("${index + 1}. $nombre", fontWeight = FontWeight.Medium, color = Color.Black)
-                                IconButton(onClick = {
-                                    val nuevaLista = nombres.toMutableList()
-                                    nuevaLista.removeAt(index)
-                                    onNombresChange(nuevaLista)
-                                }) {
-                                    Icon(Icons.Default.Delete, "Borrar", tint = Color(0xFFD32F2F))
-                                }
-                            }
-                            HorizontalDivider(color = Color(0xFFF1F1F1))
-                        }
-                    }
-                }
-            }
-
-            Spacer(Modifier.height(16.dp))
-
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { onStart("dupletas") }, Modifier.weight(1f), enabled = nombres.size >= 2, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2E7D32))) { Text("INICIAR DUO") }
-                Button(onClick = { onStart("tripletas") }, Modifier.weight(1f), enabled = nombres.size >= 3, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1976D2))) { Text("INICIAR TRIO") }
-            }
-        }
-    }
-}
-
-@Composable
-fun PantallaResultadoSorteo(resultado: List<List<String>>) {
-    LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp), contentPadding = PaddingValues(all = 12.dp)) {
-        itemsIndexed(resultado) { index, equipo ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Equipo ${index + 1}", fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                    Spacer(Modifier.height(4.dp))
-                    equipo.forEach {
-                        Text("• $it", fontSize = 14.sp)
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 fun EquipoCardEnfrentamiento(
     equipo: EquipoFirebase,
     rival: EquipoFirebase?,
@@ -524,57 +414,229 @@ fun EquipoCardEnfrentamiento(
     onPasarDescanso: () -> Unit,
     onGanarTorneo: () -> Unit
 ) {
-    val naranja = Color(0xFFFFA500)
-    val verdeOk = Color(0xFF2E7D32)
-    val azulDescanso = Color(0xFF1976D2)
-    val oroCampeon = Color(0xFFFFD700)
+    val estaReclamando = equipo.reclamandoVictoria
+    val rivalReclama = rival?.reclamandoVictoria ?: false
+    val esGanador = equipo.ganador
+
+    val cardColor = if (esGanador) Color(0xFFD4EDDA) else if (estaReclamando) Color(0xFFFFF3CD) else Color.White
 
     Card(
-        modifier = Modifier.fillMaxWidth().padding(4.dp),
-        colors = CardDefaults.cardColors(containerColor = if (equipo.ganador) Color(0xFFE8F5E9) else Color.White),
-        shape = RoundedCornerShape(8.dp),
-        border = if (equipo.reclamandoVictoria) BorderStroke(2.dp, naranja) else if (equipo.ganador) BorderStroke(2.dp, oroCampeon) else null
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(containerColor = cardColor)
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(equipo.miembros.joinToString(" • "), fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                if (equipo.ganador) {
-                    Text("🏆 ¡CAMPEÓN!", fontSize = 12.sp, color = verdeOk, fontWeight = FontWeight.ExtraBold)
+                Text(equipo.nombre, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                if (esGanador) {
+                    Text("¡CAMPEÓN DEL TORNEO! 🏆", color = Color(0xFF155724), fontWeight = FontWeight.Bold)
                 } else if (equipo.haDescansado) {
-                    Text("YA HA DESCANSADO", fontSize = 9.sp, color = Color.Gray)
+                    Text("Pasa a la siguiente ronda (descanso)", color = Color.Gray, fontSize = 12.sp)
                 }
             }
 
-            if (!equipo.ganador) {
-                if (esElUnico && rival == null) {
-                    Button(onClick = onGanarTorneo, colors = ButtonDefaults.buttonColors(containerColor = oroCampeon)) {
-                        Icon(Icons.Default.EmojiEvents, null, tint = Color.Black, modifier = Modifier.size(16.dp))
-                        Text("GANAR", fontSize = 10.sp, color = Color.Black)
+            if (esGanador) {
+                // No hay botones si ya es campeón
+            } else if (rivalReclama) {
+                Row {
+                    Button(onClick = onConfirmarDerrota, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28A745))) {
+                        Icon(Icons.Default.Check, null)
                     }
-                } else if (rival == null) {
-                    Button(onClick = onPasarDescanso, colors = ButtonDefaults.buttonColors(containerColor = azulDescanso)) {
-                        Text("DESCANSAR", fontSize = 10.sp)
+                    Spacer(Modifier.width(8.dp))
+                    Button(onClick = onNegarVictoria, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC3545))) {
+                        Icon(Icons.Default.Close, null)
                     }
-                } else {
-                    if (rival.reclamandoVictoria) {
-                        Row {
-                            Button(
-                                onClick = onConfirmarDerrota,
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD32F2F)),
-                                contentPadding = PaddingValues(horizontal = 8.dp)
-                            ) {
-                                Text("PERDÍ", fontSize = 10.sp)
+                }
+            } else if (estaReclamando) {
+                CircularProgressIndicator(modifier = Modifier.size(24.dp))
+            } else if (esElUnico) {
+                Button(onClick = onGanarTorneo) { Text("PROCLAMAR CAMPEÓN") }
+            } else if (rival == null) {
+                Button(onClick = onPasarDescanso) { Text("PASAR RONDA") }
+            } else {
+                Button(onClick = onReclamar) { Text("RECLAMAR VICTORIA") }
+            }
+        }
+    }
+}
+
+
+// --- VISTA CREADOR (REFACTORIZADA) ---
+
+fun generarCodigoTorneo(): String {
+    val chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    return (1..5)
+        .map { Random.nextInt(0, chars.length) }
+        .map(chars::get)
+        .joinToString("")
+}
+
+@Composable
+fun VistaCreadorConCodigo(onBack: () -> Unit) {
+    var codigoTorneo by remember { mutableStateOf<String?>(null) }
+    var isAdmin by remember { mutableStateOf(false) }
+    var claveInput by remember { mutableStateOf("") }
+
+    if (!isAdmin) {
+        PantallaLoginAdmin(
+            clave = claveInput,
+            onClaveChange = { claveInput = it },
+            onLogin = { if (claveInput == "1234") isAdmin = true },
+            onBack = onBack
+        )
+    } else if (codigoTorneo == null) {
+        PantallaSetupCreador(
+            onPublicar = { equipos ->
+                val nuevoCodigo = generarCodigoTorneo()
+                val firebaseManager = FirebaseManager(nuevoCodigo)
+                firebaseManager.publicarSorteo(equipos)
+                codigoTorneo = nuevoCodigo
+            },
+            onBack = { isAdmin = false }
+        )
+    } else {
+        VistaJugador(
+            codigoTorneo = codigoTorneo!!,
+            onBack = { codigoTorneo = null }
+        )
+    }
+}
+
+@Composable
+fun PantallaLoginAdmin(
+    clave: String,
+    onClaveChange: (String) -> Unit,
+    onLogin: () -> Unit,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize().padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.align(Alignment.Start)) {
+            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+        Text("ACCESO CREADOR", fontWeight = FontWeight.Black, fontSize = 24.sp)
+        Spacer(modifier = Modifier.height(24.dp))
+        OutlinedTextField(
+            value = clave,
+            onValueChange = onClaveChange,
+            label = { Text("Clave de Administrador") },
+            modifier = Modifier.fillMaxWidth(0.8f),
+            singleLine = true,
+            visualTransformation = PasswordVisualTransformation()
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onLogin,
+            modifier = Modifier.fillMaxWidth(0.8f).height(50.dp)
+        ) {
+            Text("ENTRAR")
+        }
+        Spacer(modifier = Modifier.weight(1f))
+    }
+}
+
+@Composable
+fun PantallaSetupCreador(
+    onPublicar: (List<EquipoFirebase>) -> Unit,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val dataStore = remember { SorteoDataStore(context) }
+    val nombres by dataStore.nombres.collectAsState(initial = emptyList())
+    val coroutineScope = rememberCoroutineScope()
+    var nombreTexto by remember { mutableStateOf("") }
+
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            Modifier.fillMaxWidth().padding(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
+            }
+            Text("Configurar Torneo", fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp))
+        }
+
+        Card(Modifier.fillMaxSize().padding(12.dp), colors = CardDefaults.cardColors(containerColor = Color(0xFFE3F2FD))) {
+            Column(Modifier.padding(16.dp)) {
+                Text("INSCRIPCIÓN DE JUGADORES", fontWeight = FontWeight.Black, fontSize = 18.sp, color = Color.Black)
+                Spacer(Modifier.height(8.dp))
+
+                OutlinedTextField(
+                    value = nombreTexto,
+                    onValueChange = { nombreTexto = it },
+                    label = { Text("Nombre del Jugador") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = Color.Black,
+                        unfocusedTextColor = Color.Black,
+                        cursorColor = Color.Black,
+                        focusedLabelColor = Color.DarkGray,
+                        unfocusedLabelColor = Color.DarkGray
+                    ),
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            if (nombreTexto.isNotBlank()) {
+                                coroutineScope.launch {
+                                    dataStore.guardarNombres(nombres + nombreTexto.trim())
+                                }
+                                nombreTexto = ""
                             }
-                            Spacer(Modifier.width(4.dp))
-                            OutlinedButton(onClick = onNegarVictoria, contentPadding = PaddingValues(horizontal = 8.dp)) {
-                                Text("FALSO", fontSize = 10.sp)
+                        }) { Icon(Icons.Default.PersonAdd, null, tint = MaterialTheme.colorScheme.primary) }
+                    }
+                )
+
+                Text("Inscritos: ${nombres.size}", Modifier.padding(vertical = 12.dp), fontWeight = FontWeight.Bold, color = Color.DarkGray)
+
+                Box(
+                    Modifier.weight(1f).fillMaxWidth().background(Color.White, RoundedCornerShape(8.dp))
+                        .border(1.dp, Color.LightGray, RoundedCornerShape(8.dp))
+                ) {
+                    if (nombres.isEmpty()) {
+                        Text("No hay jugadores añadidos", Modifier.align(Alignment.Center), color = Color.LightGray)
+                    } else {
+                        LazyColumn(Modifier.padding(4.dp)) {
+                            itemsIndexed(nombres) { index, nombre ->
+                                Row(
+                                    Modifier.fillMaxWidth().padding(8.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text("${index + 1}. $nombre", fontWeight = FontWeight.Medium, color = Color.Black)
+                                    IconButton(onClick = {
+                                        coroutineScope.launch {
+                                            val nuevaLista = nombres.toMutableList()
+                                            nuevaLista.removeAt(index)
+                                            dataStore.guardarNombres(nuevaLista)
+                                        }
+                                    }) {
+                                        Icon(Icons.Default.Delete, "Borrar", tint = Color(0xFFD32F2F))
+                                    }
+                                }
+                                HorizontalDivider(color = Color(0xFFF1F1F1))
                             }
                         }
-                    } else if (!equipo.reclamandoVictoria) {
-                        IconButton(onClick = onReclamar) {
-                            Icon(Icons.Default.CheckCircle, null, tint = verdeOk)
-                        }
                     }
+                }
+
+                Spacer(Modifier.height(16.dp))
+
+                Button(
+                    onClick = {
+                        val equiposMezclados = nombres.shuffled()
+                        val equiposFirebase = equiposMezclados.map {
+                            EquipoFirebase(nombre = it, fase = "General")
+                        }
+                        onPublicar(equiposFirebase)
+                    },
+                    Modifier.fillMaxWidth().height(50.dp),
+                    enabled = nombres.size >= 2
+                ) {
+                    Text("PUBLICAR TORNEO", fontSize = 16.sp)
                 }
             }
         }

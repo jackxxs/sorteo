@@ -5,8 +5,8 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 
-class FirebaseManager {
-    private val database = FirebaseDatabase.getInstance().reference.child("torneo_petanca")
+class FirebaseManager(codigoTorneo: String) {
+    private val database = FirebaseDatabase.getInstance().reference.child("torneos").child(codigoTorneo)
 
     fun publicarSorteo(equipos: List<EquipoFirebase>) {
         database.setValue(equipos)
