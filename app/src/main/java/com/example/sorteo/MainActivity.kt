@@ -128,7 +128,7 @@ fun PantallaSeleccionRol(onRoleSelected: (UserRole) -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("PETANCA LIVE ⚾", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Black)
+        Text("PETANCA LIVE ⚾", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Red)
         Spacer(modifier = Modifier.height(50.dp))
 
         Button(
