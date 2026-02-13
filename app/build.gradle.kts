@@ -2,8 +2,8 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
-    // Asegúrate de tener el plugin de Google Services aquí
     id("com.google.gms.google-services")
+    id("com.google.firebase.appdistribution") // <--- AÑADIDO
 }
 
 android {
@@ -27,7 +27,7 @@ android {
     }
 
     kotlinOptions {
-        jvmTarget = "11" // Esto arregla tu error de compilación
+        jvmTarget = "11"
     }
 }
 

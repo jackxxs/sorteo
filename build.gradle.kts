@@ -1,11 +1,6 @@
-// TOP-LEVEL build file
 plugins {
-    // Estas líneas le dicen a Gradle qué plugins existen y qué versión usar
-    id("com.android.application") version "9.0.0" apply false
-    id("com.android.library") version "9.0.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.10" apply false
-    id("org.jetbrains.kotlin.plugin.compose") version "2.2.10" apply false
-
-    // ESTA ES LA LÍNEA QUE TE FALTA:
+    id("com.android.application") version "8.4.1" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.22" apply false
     id("com.google.gms.google-services") version "4.4.2" apply false
+    id("com.google.firebase.appdistribution") version "5.0.0" apply false
 }

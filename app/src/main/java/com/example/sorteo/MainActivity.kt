@@ -1,5 +1,6 @@
 package com.example.sorteo
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -29,6 +30,50 @@ import androidx.core.view.WindowInsetsControllerCompat
 import com.example.sorteo.ui.theme.SORTEOTheme
 import kotlinx.coroutines.launch
 import kotlin.random.Random
+
+// --- Funciones de Ayuda para Compartir ---
+
+fun formatSorteoRapidoForShare(resultado: List<List<String>>): String {
+    return buildString {
+        append("--- RESULTADO DEL SORTEO RÁPIDO ---\n\n")
+        resultado.forEachIndexed { index, equipo ->
+            append("EQUIPO ${index + 1}:\n")
+            equipo.forEach { nombre ->
+                append(" • $nombre\n")
+            }
+            append("\n")
+        }
+    }
+}
+
+fun formatTorneoForShare(equipos: List<EquipoFirebase>, codigo: String, fases: List<String>): String {
+    return buildString {
+        append("--- TORNEO: $codigo ---\n\n")
+        if (equipos.isEmpty()) {
+            append("Aún no hay datos del torneo.")
+            return@buildString
+        }
+        fases.forEach { fase ->
+            val equiposEnFase = equipos.filter { it.fase == fase }
+            if (equiposEnFase.isNotEmpty()) {
+                append("--- FASE: ${fase.uppercase()} ---\n")
+                val partidas = equiposEnFase.chunked(2)
+                partidas.forEach { pareja ->
+                    val eqA = pareja[0].miembros.joinToString(" y ")
+                    if (pareja.size > 1) {
+                        val eqB = pareja[1].miembros.joinToString(" y ")
+                        append("$eqA vs $eqB\n")
+                    } else {
+                        append("$eqA (Pasa a siguiente ronda)\n")
+                    }
+                }
+                append("\n")
+            }
+        }
+    }
+}
+
+// --- Fin de Funciones de Ayuda ---
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -108,12 +153,12 @@ fun PantallaSeleccionRol(onRoleSelected: (UserRole) -> Unit) {
     }
 }
 
-// --- SORTEO RAPIDO (SIN CAMBIOS) ---
 @Composable
 fun VistaSorteoRapido(onBack: () -> Unit) {
     var nombres by remember { mutableStateOf(listOf<String>()) }
     var nombreTexto by remember { mutableStateOf("") }
     var sorteoResult by remember { mutableStateOf<List<List<String>>?>(null) }
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize()) {
         Row(
@@ -129,6 +174,21 @@ fun VistaSorteoRapido(onBack: () -> Unit) {
                 text = if (sorteoResult == null) "Sorteo Rápido" else "Resultado del Sorteo",
                 fontWeight = FontWeight.Black, fontSize = 20.sp, modifier = Modifier.padding(start = 4.dp)
             )
+            if (sorteoResult != null) {
+                Spacer(Modifier.weight(1f))
+                IconButton(onClick = {
+                    val textoCompartir = formatSorteoRapidoForShare(sorteoResult!!)
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, textoCompartir)
+                        type = "text/plain"
+                    }
+                    val shareIntent = Intent.createChooser(sendIntent, "Compartir Resultado")
+                    context.startActivity(shareIntent)
+                }) {
+                    Icon(Icons.Default.Share, contentDescription = "Compartir")
+                }
+            }
         }
 
         if (sorteoResult != null) {
@@ -327,12 +387,27 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
     val equiposInternet by firebaseManager.escucharSorteo().collectAsState(initial = emptyList())
     var tabSeleccionada by remember { mutableIntStateOf(0) }
     val fases = listOf("General", "Consolación", "Repesca")
+    val context = LocalContext.current
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
             Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp)
-            IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Salir")
+            Row {
+                IconButton(onClick = {
+                    val textoCompartir = formatTorneoForShare(equiposInternet, codigoTorneo, fases)
+                    val sendIntent = Intent().apply {
+                        action = Intent.ACTION_SEND
+                        putExtra(Intent.EXTRA_TEXT, textoCompartir)
+                        type = "text/plain"
+                    }
+                    val shareIntent = Intent.createChooser(sendIntent, "Compartir Torneo")
+                    context.startActivity(shareIntent)
+                }) {
+                    Icon(Icons.Default.Share, "Compartir")
+                }
+                IconButton(onClick = onBack) {
+                    Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = "Salir")
+                }
             }
         }
 
@@ -341,7 +416,7 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator()
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("Esperando que el creador inicie el torneo...", fontSize = 16.sp, color = Color.Gray, textAlign = TextAlign.Center)
+                    Text("Esperando datos del torneo...", fontSize = 16.sp, color = Color.Gray, textAlign = TextAlign.Center)
                 }
             }
         } else {
@@ -426,7 +501,7 @@ fun EquipoCardEnfrentamiento(
     ) {
         Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Column(Modifier.weight(1f)) {
-                Text(equipo.nombre, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(equipo.miembros.joinToString(", "), fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 if (esGanador) {
                     Text("¡CAMPEÓN DEL TORNEO! 🏆", color = Color(0xFF155724), fontWeight = FontWeight.Bold)
                 } else if (equipo.haDescansado) {
@@ -629,7 +704,7 @@ fun PantallaSetupCreador(
                     onClick = {
                         val equiposMezclados = nombres.shuffled()
                         val equiposFirebase = equiposMezclados.map {
-                            EquipoFirebase(nombre = it, fase = "General")
+                            EquipoFirebase(miembros = listOf(it), fase = "General")
                         }
                         onPublicar(equiposFirebase)
                     },
