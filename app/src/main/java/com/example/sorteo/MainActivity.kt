@@ -8,15 +8,20 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -391,7 +396,9 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
 
     Column(modifier = Modifier.fillMaxSize().padding(12.dp)) {
         Row(Modifier.fillMaxWidth().padding(bottom = 8.dp), Arrangement.SpaceBetween, Alignment.CenterVertically) {
-            Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp)
+            SelectionContainer {
+                Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp)
+            }
             Row {
                 IconButton(onClick = {
                     val textoCompartir = formatTorneoForShare(equiposInternet, codigoTorneo, fases)
@@ -428,50 +435,34 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
                 }
             }
 
-            LazyColumn(modifier = Modifier.weight(1f).padding(top = 12.dp)) {
-                val faseActual = fases[tabSeleccionada]
-                val filtrados = equiposInternet.filter { it.fase == faseActual }
-                val partidas = filtrados.chunked(2)
-                val esUltimoEquipo = filtrados.size == 1
+            // NUEVA VISTA DE BRACKET
+            val faseActual = fases[tabSeleccionada]
+            val equiposEnFase = equiposInternet.filter { it.fase == faseActual }
+            BracketFase(partidas = equiposEnFase.chunked(2))
+        }
+    }
+}
 
-                itemsIndexed(partidas) { _, pareja ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F1F1)),
-                        elevation = CardDefaults.cardElevation(2.dp)
-                    ) {
-                        Column(Modifier.padding(8.dp)) {
-                            val eqA = pareja[0]
-                            val indexA = equiposInternet.indexOf(eqA)
-                            val eqB = if (pareja.size > 1) pareja[1] else null
-                            val indexB = if (eqB != null) equiposInternet.indexOf(eqB) else -1
+@Composable
+fun BracketFase(partidas: List<List<EquipoFirebase>>) {
+    val scrollState = rememberScrollState()
 
-                            EquipoCardEnfrentamiento(
-                                equipo = eqA,
-                                rival = eqB,
-                                esElUnico = esUltimoEquipo,
-                                onReclamar = { firebaseManager.reclamarVictoria(indexA) },
-                                onConfirmarDerrota = { if (indexB != -1) firebaseManager.confirmarResultado(indexB, indexA, faseActual) },
-                                onNegarVictoria = { if (indexB != -1) firebaseManager.rechazarVictoria(indexB) },
-                                onPasarDescanso = { firebaseManager.confirmarResultado(indexA, null, faseActual) },
-                                onGanarTorneo = { firebaseManager.proclamarCampeon(indexA) }
-                            )
+    if (partidas.isEmpty()) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text("No hay partidas en esta fase.", color = Color.Gray)
+        }
+        return
+    }
 
-                            if (eqB != null) {
-                                Text("VS", Modifier.fillMaxWidth().padding(vertical = 4.dp), textAlign = TextAlign.Center, fontWeight = FontWeight.Bold, color = Color.LightGray)
-                                EquipoCardEnfrentamiento(
-                                    equipo = eqB,
-                                    rival = eqA,
-                                    esElUnico = false,
-                                    onReclamar = { if (indexB != -1) firebaseManager.reclamarVictoria(indexB) },
-                                    onConfirmarDerrota = { firebaseManager.confirmarResultado(indexA, indexB, faseActual) },
-                                    onNegarVictoria = { firebaseManager.rechazarVictoria(indexA) },
-                                    onPasarDescanso = {},
-                                    onGanarTorneo = {}
-                                )
-                            }
-                        }
-                    }
+    Row(modifier = Modifier.fillMaxSize().horizontalScroll(scrollState).padding(top = 24.dp, start = 16.dp, end = 16.dp)) {
+        // Por ahora, solo mostramos una ronda. La lógica para múltiples rondas es más compleja.
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Text("Ronda 1", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            Spacer(modifier = Modifier.height(16.dp))
+            partidas.forEachIndexed { index, partida ->
+                PartidaCard(partida = partida)
+                if (index < partidas.size - 1) {
+                    Spacer(modifier = Modifier.height(50.dp)) // Espacio entre partidas
                 }
             }
         }
@@ -479,61 +470,56 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
 }
 
 @Composable
-fun EquipoCardEnfrentamiento(
-    equipo: EquipoFirebase,
-    rival: EquipoFirebase?,
-    esElUnico: Boolean,
-    onReclamar: () -> Unit,
-    onConfirmarDerrota: () -> Unit,
-    onNegarVictoria: () -> Unit,
-    onPasarDescanso: () -> Unit,
-    onGanarTorneo: () -> Unit
-) {
-    val estaReclamando = equipo.reclamandoVictoria
-    val rivalReclama = rival?.reclamandoVictoria ?: false
-    val esGanador = equipo.ganador
+fun PartidaCard(partida: List<EquipoFirebase>) {
+    val lineColor = Color.LightGray
+    val lineStroke = 2.dp
 
-    val cardColor = if (esGanador) Color(0xFFD4EDDA) else if (estaReclamando) Color(0xFFFFF3CD) else Color.White
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = cardColor)
-    ) {
-        Row(Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Column(Modifier.weight(1f)) {
-                Text(equipo.miembros.joinToString(", "), fontWeight = FontWeight.Bold, fontSize = 16.sp)
-                if (esGanador) {
-                    Text("¡CAMPEÓN DEL TORNEO! 🏆", color = Color(0xFF155724), fontWeight = FontWeight.Bold)
-                } else if (equipo.haDescansado) {
-                    Text("Pasa a la siguiente ronda (descanso)", color = Color.Gray, fontSize = 12.sp)
+    Box(contentAlignment = Alignment.Center) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Card(shape = RoundedCornerShape(8.dp), modifier = Modifier.width(180.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                Text(partida[0].miembros.joinToString(", "), modifier = Modifier.padding(12.dp), maxLines = 1)
+            }
+            Spacer(modifier = Modifier.height(16.dp))
+            Card(shape = RoundedCornerShape(8.dp), modifier = Modifier.width(180.dp), colors = CardDefaults.cardColors(containerColor = Color.White)) {
+                if (partida.size > 1) {
+                    Text(partida[1].miembros.joinToString(", "), modifier = Modifier.padding(12.dp), maxLines = 1)
+                } else {
+                    Text("- Descansa -", modifier = Modifier.padding(12.dp), color = Color.Gray)
                 }
             }
+        }
 
-            if (esGanador) {
-                // No hay botones si ya es campeón
-            } else if (rivalReclama) {
-                Row {
-                    Button(onClick = onConfirmarDerrota, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF28A745))) {
-                        Icon(Icons.Default.Check, null)
-                    }
-                    Spacer(Modifier.width(8.dp))
-                    Button(onClick = onNegarVictoria, colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFDC3545))) {
-                        Icon(Icons.Default.Close, null)
-                    }
-                }
-            } else if (estaReclamando) {
-                CircularProgressIndicator(modifier = Modifier.size(24.dp))
-            } else if (esElUnico) {
-                Button(onClick = onGanarTorneo) { Text("PROCLAMAR CAMPEÓN") }
-            } else if (rival == null) {
-                Button(onClick = onPasarDescanso) { Text("PASAR RONDA") }
+        // --- Líneas del Bracket ---
+        Canvas(modifier = Modifier.matchParentSize()) { ->
+            val cardHeight = 48.dp.toPx() // Altura aproximada de una tarjeta
+            val spaceBetweenCards = 16.dp.toPx()
+            val midPointY = size.height / 2
+            val startX = (size.width / 2) - 90.dp.toPx() // Centro del card
+            val endX = size.width / 2
+
+            // Línea del equipo de arriba
+            drawLine(
+                color = lineColor, start = Offset(startX, cardHeight / 2), end = Offset(endX, cardHeight / 2), strokeWidth = lineStroke.toPx()
+            )
+            // Línea del equipo de abajo
+            if (partida.size > 1) {
+                val bottomCardY = cardHeight + spaceBetweenCards + (cardHeight / 2)
+                drawLine(
+                    color = lineColor, start = Offset(startX, bottomCardY), end = Offset(endX, bottomCardY), strokeWidth = lineStroke.toPx()
+                )
+                // Línea vertical que une las dos
+                drawLine(
+                    color = lineColor, start = Offset(endX, cardHeight / 2), end = Offset(endX, bottomCardY), strokeWidth = lineStroke.toPx()
+                )
             } else {
-                Button(onClick = onReclamar) { Text("RECLAMAR VICTORIA") }
+                 // Línea que sigue si no hay rival
+                 drawLine(
+                     color = lineColor, start = Offset(endX, cardHeight/2), end = Offset(endX + 40.dp.toPx(), cardHeight/2), strokeWidth = lineStroke.toPx()
+                 )
             }
         }
     }
 }
-
 
 // --- VISTA CREADOR (REFACTORIZADA) ---
 
