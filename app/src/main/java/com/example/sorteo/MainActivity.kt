@@ -128,7 +128,7 @@ fun PantallaSeleccionRol(onRoleSelected: (UserRole) -> Unit) {
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Text("PETANCA LIVE ⚾", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Red)
+        Text("PETANCA LIVE ⚾", fontWeight = FontWeight.Black, fontSize = 28.sp, color = Color.Black)
         Spacer(modifier = Modifier.height(50.dp))
 
         Button(
@@ -397,7 +397,7 @@ fun VistaJugador(codigoTorneo: String, onBack: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             SelectionContainer {
-                Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color.White)
+                Text("TORNEO: $codigoTorneo ⚾", fontWeight = FontWeight.Black, fontSize = 20.sp, color = Color.Black)
             }
             Row {
                 IconButton(onClick = {
@@ -739,3 +739,4 @@ fun PantallaSetupCreador(
         }
     }
 }
+
