@@ -618,10 +618,7 @@ fun PantallaSetupCreador(
     onPublicar: (List<EquipoFirebase>) -> Unit,
     onBack: () -> Unit
 ) {
-    val context = LocalContext.current
-    val dataStore = remember { SorteoDataStore(context) }
-    val nombres by dataStore.nombres.collectAsState(initial = emptyList())
-    val coroutineScope = rememberCoroutineScope()
+    var nombres by remember { mutableStateOf(listOf<String>()) }
     var nombreTexto by remember { mutableStateOf("") }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -656,9 +653,7 @@ fun PantallaSetupCreador(
                     trailingIcon = {
                         IconButton(onClick = {
                             if (nombreTexto.isNotBlank()) {
-                                coroutineScope.launch {
-                                    dataStore.guardarNombres(nombres + nombreTexto.trim())
-                                }
+                                nombres = nombres + nombreTexto.trim()
                                 nombreTexto = ""
                             }
                         }) { Icon(Icons.Default.PersonAdd, null, tint = MaterialTheme.colorScheme.primary) }
@@ -683,11 +678,9 @@ fun PantallaSetupCreador(
                                 ) {
                                     Text("${index + 1}. $nombre", fontWeight = FontWeight.Medium, color = Color.Black)
                                     IconButton(onClick = {
-                                        coroutineScope.launch {
-                                            val nuevaLista = nombres.toMutableList()
-                                            nuevaLista.removeAt(index)
-                                            dataStore.guardarNombres(nuevaLista)
-                                        }
+                                        val nuevaLista = nombres.toMutableList()
+                                        nuevaLista.removeAt(index)
+                                        nombres = nuevaLista
                                     }) {
                                         Icon(Icons.Default.Delete, "Borrar", tint = Color(0xFFD32F2F))
                                     }

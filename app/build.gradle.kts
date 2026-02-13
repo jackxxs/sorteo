@@ -1,9 +1,10 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
-    id("org.jetbrains.kotlin.plugin.compose")
+    // id("org.jetbrains.kotlin.plugin.compose") // Eliminado para usar la nueva integración
     id("com.google.gms.google-services")
-    id("com.google.firebase.appdistribution") // <--- AÑADIDO
+    id("com.google.firebase.appdistribution")
+    alias(libs.plugins.kotlin.compose)
 }
 
 android {
@@ -19,7 +20,9 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
-    buildFeatures { compose = true }
+    buildFeatures {
+        compose = true
+    }
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_11
@@ -43,10 +46,11 @@ dependencies {
     implementation(platform("com.google.firebase:firebase-bom:33.1.2"))
     implementation("com.google.firebase:firebase-database-ktx")
     implementation("com.google.firebase:firebase-auth-ktx")
+    implementation("com.google.firebase:firebase-appdistribution-ktx:16.0.0-beta02") // CORREGIDO CON NOMBRE Y VERSIÓN CORRECTOS
 
     // Guardado local
     implementation("androidx.datastore:datastore-preferences:1.1.1")
-    
+
     // Dependencias de Test
     testImplementation("junit:junit:4.13.2")
     androidTestImplementation("androidx.test.ext:junit:1.1.5")
